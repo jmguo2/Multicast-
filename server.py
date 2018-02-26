@@ -9,25 +9,23 @@ from datetime import datetime
 import select
 
 class listener_thread (threading.Thread):
-    def __init__(self, queue, address_to_pid):
+    def __init__(self, queue):
         super(listener_thread, self).__init__()
         self.queue = queue
-        self.address_to_pid = address_to_pid
     def run(self):
         global inputs
+        global pid_to_socket
+        global address_to_pid
         while(1):
             readable, writable, exceptional = select.select(inputs, [], [], 0) 
             for s in readable:
                 if s is server:
                     connection, client_address = s.accept()
                     client_pid = int(connection.recv(1024))
-                    print('new connection from ' + str(client_pid))
                     inputs.append(connection)
-                    global pid_to_socket
-                    global address_to_pid
                     pid_to_socket[client_pid] = connection
                     address_to_pid[client_address] = client_pid
-                else: # case where s is a client socket 
+                else:      # case where s is a client socket 
                     data = s.recv(1024)
                     if data:
                         pid_from = address_to_pid[s.getpeername()]
@@ -41,7 +39,7 @@ class listener_thread (threading.Thread):
 
 class client_thread (threading.Thread):
 
-    def __init__(self, queue, pid_to_socket):
+    def __init__(self, queue):
         super(client_thread, self).__init__()
         self.queue = queue
     def run(self):
@@ -82,6 +80,8 @@ def tcp_send(destination, send_socket, message):
     time = str(datetime.now())
     print("Sent \"" + message + "\" to process " + str(destination) + ", system time is " + time)
 
+# todo: check to make sure you aren't sending a message to yourself 
+
 def unicast_send(cli_arg):
     destination = int(cli_arg[1])
     message = cli_arg[2]
@@ -113,7 +113,7 @@ def server_init():
     # server.setblocking(0)
     server.bind(server_binding_addr)
     print('Server binding to ' + str(server_binding_addr[1]))
-    server.listen(pid_count+1)
+    server.listen(pid_count-1)
     return server 
 
 
@@ -138,7 +138,6 @@ with open("config.txt", "r") as file:
                 client_address = (str(ip), int(port))
                 pid_to_address[pid] = client_address
                 address_to_pid[client_address] = pid
-                message_queue[(client_address[0], client_address[1]+1)] = Queue.Queue()
             else:
                 server_binding_addr = (str(ip), int(port)) 
             pid_count = pid_count + 1 
@@ -152,7 +151,7 @@ min_delay, max_delay = delay.strip().split(' ')
 server = server_init()
 inputs = [server]
 outputs = []
-listener = listener_thread(message_queue, address_to_pid)
+listener = listener_thread(message_queue)
 listener.start()
-client = client_thread(message_queue, pid_to_address)
+client = client_thread(message_queue)
 client.start()
