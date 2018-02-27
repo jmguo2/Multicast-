@@ -46,9 +46,7 @@ class listener_thread (threading.Thread):
 def server_init():
     server = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
     server.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-    # server.setblocking(0)
     server.bind(server_binding_addr)
-    print('Server binding to ' + str(server_binding_addr[1]))
     server.listen(pid_count-1)
     return server 
 
@@ -142,8 +140,10 @@ def get_unicast_fmt_string():
 def casual_order_send(client, cli_arg):
     # for every server in pid_to_address aside from own pid, call tcp_send
     message = cli_arg[1]
-    encoded_msg = encode_vector(message)
     pid_to_vector[server_pid][server_pid] = pid_to_vector[server_pid][server_pid]+1 # increment process i's count of messages from i 
+    print("Send casual: ")
+    print_vector(pid_to_vector[server_pid])
+    encoded_msg = encode_vector(message)
     for pid, socket in pid_to_socket.iteritems():
         socket = pid_to_socket[pid]
         print_time(message, pid)
@@ -156,6 +156,9 @@ def casual_order_delivery(client_pid, message):
     global pid_to_vector
     print_receive_time(client_pid, message)
     pid_to_vector[server_pid][client_pid] = pid_to_vector[server_pid][client_pid] + 1
+    print("Delivery casual: ")
+    print_vector(pid_to_vector[server_pid])
+
 
 def casual_order_receive(server, decoded_vec):
     global message_queue
@@ -166,7 +169,9 @@ def casual_order_receive(server, decoded_vec):
         print_receive_time(client_pid, message)
     else:
         will_deliver = check_casuality(decoded_vec, client_pid)
-        if(will_deliver):
+        if(will_deliver):   
+            # print("Multicasted vector for casual: ")
+            # print_vector(decoded_vec)
             casual_order_delivery(client_pid, message)
             recursive_delivery()
         else:
@@ -174,6 +179,7 @@ def casual_order_receive(server, decoded_vec):
 
 def recursive_delivery():
     global message_queue
+    print('recursive_delivery')
     for client_pid, vector_list in message_queue.iteritems():
         for index, vector in enumerate(vector_list):
             if(check_casuality(vector, client_pid)):
@@ -200,13 +206,23 @@ def encode_vector(message):
     return buf 
 
 def check_casuality(client_vec, client_pid):
-    valid = 1
     if(client_vec[client_pid] == pid_to_vector[server_pid][client_pid]+1): # check to make sure its the right message from the client
-        for i in range(pid_count):  # make sure we've seen everything that the client has seen 
-            k = i+1 
-            if(k != client_pid and pid_to_vector[server_pid][k] < client_vec[k]):
-                valid = 0
-    return valid 
+        for i in range(1, pid_count+1):  # make sure we've seen everything that the client has seen 
+            if(i != client_pid and pid_to_vector[server_pid][i] < client_vec[i]):
+                return 0
+    else:
+        return 0
+    return 1
+
+# testing functions -----------------------------------------------------------------------------------------------------------------------
+
+def print_vector(vector):
+    vec_list = []
+    for index, item in enumerate(vector):
+        if(index != 0):
+            vec_list.append(item)
+    print(tuple(vec_list))
+    
 
 # entry function --------------------------------------------------------------------------------------------------------------------------
 # set up a server for each process in the config file, and bind it to its assigned ip and port 
@@ -238,8 +254,6 @@ with open("config.txt", "r") as file:
 for i in range(pid_count):
     pid = i + 1
     pid_to_vector[pid] = [0] * (pid_count+1) 
-    # if(pid != server_pid):
-    #     message_queue[pid] = 
  
 casual_fmt_string = get_casual_fmt_string()
 unicast_fmt_string = get_unicast_fmt_string()
