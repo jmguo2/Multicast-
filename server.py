@@ -292,10 +292,10 @@ def total_order_recieve(server, decoded_vec):
         
     if redistribute:
         print("Sequencer (id={}) redistributing message {}".format(server_pid, message))
-        for pid in pid_to_socket.keys():
-            pid_to_vector[server_pid][pid] += 1
-            buf = struct.pack(total_fmt_string, 0, 0, False, pid_to_vector[server_pid][pid], sender_pid, sequencer_pid, message)
-            delayed_send(pid_to_socket[pid], buf)
+        for recip_pid in pid_to_socket.keys():
+            pid_to_vector[server_pid][recip_pid] += 1
+            buf = struct.pack(total_fmt_string, 0, 0, False, pid_to_vector[server_pid][recip_pid], server_pid, sequencer_pid, message)
+            delayed_send(pid_to_socket[recip_pid], buf)
     
     else:
         print_receive_time(sender_pid, message.strip())
@@ -306,8 +306,7 @@ def total_order_recieve(server, decoded_vec):
 def deliver_total_order(decoded_vec):
     _, _, redistribute, message_number, sender_pid, sequencer_pid, message = decoded_vec
     print(pid_to_vector[server_pid][sender_pid], message_number)
-    if pid_to_vector[server_pid][sender_pid] + 1 == message_number or \
-        (sender_pid == server_pid and pid_to_vector[server_pid][server_pid] == message_number): # check to make sure its the right message from the client
+    if pid_to_vector[server_pid][sender_pid] + 1 == message_number or sender_pid == server_pid: # check to make sure its the right message from the client
         # deliver, this is the message we're awaiting
         print("(id={} via seq id={}): {}".format(sender_pid, sequencer_pid, message.strip()))
         pid_to_vector[server_pid][sender_pid] += 1
