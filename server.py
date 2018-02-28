@@ -17,9 +17,12 @@ from collections import defaultdict
 class listener_thread (threading.Thread):
     def __init__(self):
         super(listener_thread, self).__init__()
+        self.running = True
+    def stop(self):
+        self.running = False
     def run(self):
         global inputs, pid_to_socket, address_to_pid
-        while(1):
+        while(self.running):
             readable, writable, exceptional = select.select(inputs, [], [], 0) 
             for s in readable:
                 if s is server:
@@ -65,19 +68,25 @@ def print_receive_time(client_pid, message):
 # casual format: msend message casual
 
 class client_thread (threading.Thread):
-    def __init__(self):
+    def __init__(self, listener_thread):
         super(client_thread, self).__init__()
+        self.listener_thread = listener_thread
+        self.running = True
     def run(self):
         client_init()
-        while(1):
+        while(self.running):
             raw_argument = raw_input("Enter command line argument for client: \n")
             cli_arg = raw_argument.strip().split(' ')
             if(cli_arg[0] == 'send'): 
                 unicast_send(cli_arg)
             elif(cli_arg[0] == 'msend' and cli_arg[2] == 'casual'):
                 casual_order_send(cli_arg)
+            elif(cli_arg[0] in ["q", "quit", "exit"]):
+                self.running = False
+                self.listener_thread.stop()
             else:
                 print("Invalid CLI argument. Please follow this format: send destination message")
+                print("[q]uit to disconnect")
 
 # establish a connection between every pair of processes 
 # send own pid after connection, so the server can map the client address/connection to the pid
@@ -306,7 +315,9 @@ min_delay, max_delay = delay.strip().split(' ')
 server = server_init()
 inputs = [server]
 listener = listener_thread()
+client = client_thread(listener)
 listener.start()
-client = client_thread()
 client.start()
 
+listener.join()
+client.join()
