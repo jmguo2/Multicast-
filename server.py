@@ -76,20 +76,27 @@ class client_thread (threading.Thread):
         self.running = True
     def run(self):
         client_init()
+        global mode, message_queue_totalOrder, message_queue
         while(self.running):
             raw_argument = raw_input("Enter command line argument for client: \n\t")
             cli_arg = raw_argument.strip().split(' ')
-            if(cli_arg[0] == 'send'): 
+            if(len(cli_arg) == 2 and cli_arg[0] == 'send'): 
                 unicast_send(destination=cli_arg[1], message=cli_arg[2])
-            elif(cli_arg[0] == 'msend' and cli_arg[2] == 'casual'):
+            elif(len(cli_arg) == 3 and cli_arg[0] == 'msend' and cli_arg[2] == 'casual'):
+                if mode != "casual":
+                    message_queue.clear()
+                    reset_vector()
+                    mode = "casual"
                 casual_order_send(cli_arg)
-            elif(cli_arg[0] == 'msend' and cli_arg[2] == 'total'):
+            elif(len(cli_arg) == 3 and cli_arg[0] == 'msend' and cli_arg[2] == 'total'):
+                if mode != "total":
+                    message_queue_totalOrder.clear()
+                    reset_vector()
+                    mode = "total"
                 total_order_send(message=cli_arg[1])
             elif(cli_arg[0] in ["q", "quit", "exit"]):
                 self.running = False
                 self.listener_thread.stop()
-            elif(cli_arg[0] == 't'): # quick testing, remove
-                total_order_send(message='hello')
             else:
                 print("Invalid CLI argument. Please follow this format.")
                 print("\tsend destination message")
@@ -130,10 +137,10 @@ def print_send_time(message, destination):
     print("\tSent \"" + message + "\" to process " + str(destination) + ", system time is " + time)
 
 # delay the unicast send by a random delay specified in the config file 
-
-def delayed_send(send_socket, message):
-    random_delay = random.uniform((float(min_delay)/1000), (float(max_delay)/1000))
-    sender_thread = threading.Timer(random_delay, tcp_send, [send_socket, message])   
+def delayed_send(send_socket, message, delay=None):
+    if not delay:
+        delay = random.uniform((float(min_delay)/1000), (float(max_delay)/1000))
+    sender_thread = threading.Timer(delay, tcp_send, [send_socket, message])
     sender_thread.start()
 
 # parse the command line arguments for message, and destination
@@ -285,37 +292,35 @@ def total_order_send(message):
     # (redistribute flag, message_number, sender PID, sequencer, message)
     buf = struct.pack(total_fmt_string, 0, 0, True, -1, server_pid, sequencer_pid, extend_message(message))
     delayed_send(pid_to_socket[sequencer_pid], buf)
-    print_send_time(message, "sequencer (id={})".format(sequencer_pid))
-    
+
 def total_order_recieve(server, decoded_vec):
+    global delay_idx
     _, _, redistribute, message_number, sender_pid, sequencer_pid, message = decoded_vec
+    message = message.strip()
         
     if redistribute:
-        print("Sequencer (id={}) redistributing message {}".format(server_pid, message))
+        print("\tSequencer recieved message {}".format(message))
         for recip_pid in pid_to_socket.keys():
             pid_to_vector[server_pid][recip_pid] += 1
             buf = struct.pack(total_fmt_string, 0, 0, False, pid_to_vector[server_pid][recip_pid], server_pid, sequencer_pid, message)
             delayed_send(pid_to_socket[recip_pid], buf)
     
     else:
-        print_receive_time(sender_pid, message.strip())
-        if not deliver_total_order(decoded_vec):
-            pass
-            # message_queue_totalOrder[server_pid].append(decoded_vec)
+        print_receive_time(sender_pid, message)
+        message_queue_totalOrder[server_pid].append(decoded_vec)
+        deliver_total_order(decoded_vec)
         
 def deliver_total_order(decoded_vec):
     _, _, redistribute, message_number, sender_pid, sequencer_pid, message = decoded_vec
-    print(pid_to_vector[server_pid][sender_pid], message_number)
+    
     if pid_to_vector[server_pid][sender_pid] + 1 == message_number or sender_pid == server_pid: # check to make sure its the right message from the client
         # deliver, this is the message we're awaiting
         print("(id={} via seq id={}): {}".format(sender_pid, sequencer_pid, message.strip()))
         pid_to_vector[server_pid][sender_pid] += 1
+        message_queue_totalOrder[server_pid].remove(decoded_vec)
         
-        # for decoded_vec in message_queue_totalOrder[server_pid]:
-        #     deliver_total_order(decoded_vec)
-        return True
-    
-    return False
+        for decoded_vec in message_queue_totalOrder[server_pid]:
+            deliver_total_order(decoded_vec)    
 
     
 
@@ -327,7 +332,11 @@ def print_vector(vector):
         if(index != 0):
             vec_list.append(item)
     print(tuple(vec_list))
-    
+        
+def reset_vector():
+    global pid_to_vector
+    for pid in range(1, pid_count+1):
+        pid_to_vector[pid] = [0] * (pid_count+1)
 
 
 # entry point --------------------------------------------------------------------------------------------------------------------------
@@ -345,6 +354,13 @@ socket_to_pid = {}
 pid_count = 0
 msg_limit = 128
 recv_limit = 1024
+
+mode = ""
+
+if len(sys.argv) < 2:
+    print("Usage: python2 server.py {1, 2, 3...}")
+    exit(1)
+
 server_pid = int(sys.argv[1])
 inputs = []
 
