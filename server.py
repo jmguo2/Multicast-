@@ -34,7 +34,7 @@ class listener_thread (threading.Thread):
                 else:        
                     data = s.recv(recv_limit)
                     if(data):
-                        for fmt_string in [casual_fmt_string, unicast_fmt_string, total_fmt_string]:
+                        for fmt_string in [casual_fmt_string, unicast_fmt_string, total_fmt_string, reset_fmt_string]:
                             try:
                                 decoded_msg = decode_message(fmt_string, data)      # decode will fail if the encoding doesn't match the format string
                                 break
@@ -46,6 +46,8 @@ class listener_thread (threading.Thread):
                             casual_order_receive(s, decoded_msg)
                         elif fmt_string == total_fmt_string:
                             total_order_recieve(s, decoded_msg)
+                        elif fmt_string == reset_fmt_string:
+                            reset()
 
 # initialize the server and listen the port specified by the config file
 
@@ -84,14 +86,12 @@ class client_thread (threading.Thread):
                 unicast_send(destination=cli_arg[1], message=cli_arg[2])
             elif(len(cli_arg) == 3 and cli_arg[0] == 'msend' and cli_arg[2] == 'casual'):
                 if mode != "casual":
-                    message_queue.clear()
-                    reset_vector()
+                    send_reset()
                     mode = "casual"
                 casual_order_send(cli_arg)
             elif(len(cli_arg) == 3 and cli_arg[0] == 'msend' and cli_arg[2] == 'total'):
                 if mode != "total":
-                    message_queue_totalOrder.clear()
-                    reset_vector()
+                    send_reset()
                     mode = "total"
                 total_order_send(message=cli_arg[1])
             elif(cli_arg[0] in ["q", "quit", "exit"]):
@@ -124,6 +124,12 @@ def client_init():
 
 
 # unicast functions ----------------------------------------------------------------------------------------------------------------------
+def send_reset():
+    print "sending reset"
+    buf = struct.pack(reset_fmt_string, False, False, False)
+    for pid, socket in pid_to_socket.items():
+        tcp_send(socket, buf)
+
 
 # basic tcp send given a socket and a message  
 
@@ -333,10 +339,14 @@ def print_vector(vector):
             vec_list.append(item)
     print(tuple(vec_list))
         
-def reset_vector():
-    global pid_to_vector
+def reset():
+    print "got reset"
+    global pid_to_vector, message_queue, message_queue_totalOrder
     for pid in range(1, pid_count+1):
         pid_to_vector[pid] = [0] * (pid_count+1)
+    message_queue.clear()
+    message_queue_totalOrder.clear()
+    
 
 
 # entry point --------------------------------------------------------------------------------------------------------------------------
@@ -382,6 +392,7 @@ for pid in range(1, pid_count+1):
 casual_fmt_string = get_casual_fmt_string()
 total_fmt_string = get_total_fmt_string()
 unicast_fmt_string = get_unicast_fmt_string()
+reset_fmt_string = '???'
 server_binding_addr = pid_to_address[server_pid]
 min_delay, max_delay = delay.strip().split(' ')
 server = server_init()
