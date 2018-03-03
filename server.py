@@ -87,12 +87,14 @@ class client_thread (threading.Thread):
             elif(len(cli_arg) == 3 and cli_arg[0] == 'msend' and cli_arg[2] == 'casual'):
                 if mode and mode != "casual":
                     send_reset()
-                    mode = "casual"
+    
+                mode = "casual"
                 casual_order_send(cli_arg)
             elif(len(cli_arg) == 3 and cli_arg[0] == 'msend' and cli_arg[2] == 'total'):
                 if mode and mode != "total":
                     send_reset()
-                    mode = "total"
+                    
+                mode = "total"
                 total_order_send(message=cli_arg[1])
             elif(cli_arg[0] in ["q", "quit", "exit"]):
                 self.running = False
