@@ -8,15 +8,13 @@ To send an unicast message, type `send destination {1, 2, 3...}`
 To multicast a message, type `msend message {casual, total}`
 
 Type `switch` to switch between ordering types. For example:
-msend A total
-...
-msend F total
-switch
-msend G casual
-...
-msend H casual
-switch
-msend I total
+`msend A total`
+`msend B total`
+`switch`
+`msend C casual`
+`msend D casual`
+`switch`
+`msend E total`
 
 
 ## Implementation details
