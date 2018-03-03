@@ -78,24 +78,18 @@ class client_thread (threading.Thread):
         self.running = True
     def run(self):
         client_init()
-        global mode, message_queue_totalOrder, message_queue
+        global message_queue_totalOrder, message_queue
         while(self.running):
             raw_argument = raw_input("Enter command line argument for client: \n\t")
             cli_arg = raw_argument.strip().split(' ')
             if(len(cli_arg) == 2 and cli_arg[0] == 'send'): 
                 unicast_send(destination=cli_arg[1], message=cli_arg[2])
             elif(len(cli_arg) == 3 and cli_arg[0] == 'msend' and cli_arg[2] == 'casual'):
-                if mode and mode != "casual":
-                    send_reset()
-    
-                mode = "casual"
                 casual_order_send(cli_arg)
             elif(len(cli_arg) == 3 and cli_arg[0] == 'msend' and cli_arg[2] == 'total'):
-                if mode and mode != "total":
-                    send_reset()
-                    
-                mode = "total"
                 total_order_send(message=cli_arg[1])
+            elif (cli_arg[0] in ["reset", "switch", "s"]):
+                send_reset()
             elif(cli_arg[0] in ["q", "quit", "exit"]):
                 self.running = False
                 self.listener_thread.stop()
@@ -103,6 +97,7 @@ class client_thread (threading.Thread):
                 print("Invalid CLI argument. Please follow this format.")
                 print("\tsend destination message")
                 print ("\tmsend message [casual, total]")
+                print("\t\"[s]witch\" to switch between total and casual ordering")
                 print("\t[q]uit to disconnect")
 
 # establish a connection between every pair of processes 
@@ -377,8 +372,6 @@ socket_to_pid = {}
 pid_count = 0
 msg_limit = 128
 recv_limit = 1024
-
-mode = None
 
 if len(sys.argv) < 2:
     print("Usage: python2 server.py {1, 2, 3...}")
