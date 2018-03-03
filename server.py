@@ -85,12 +85,12 @@ class client_thread (threading.Thread):
             if(len(cli_arg) == 2 and cli_arg[0] == 'send'): 
                 unicast_send(destination=cli_arg[1], message=cli_arg[2])
             elif(len(cli_arg) == 3 and cli_arg[0] == 'msend' and cli_arg[2] == 'casual'):
-                if mode != "casual":
+                if mode and mode != "casual":
                     send_reset()
                     mode = "casual"
                 casual_order_send(cli_arg)
             elif(len(cli_arg) == 3 and cli_arg[0] == 'msend' and cli_arg[2] == 'total'):
-                if mode != "total":
+                if mode and mode != "total":
                     send_reset()
                     mode = "total"
                 total_order_send(message=cli_arg[1])
@@ -376,7 +376,7 @@ pid_count = 0
 msg_limit = 128
 recv_limit = 1024
 
-mode = ""
+mode = None
 
 if len(sys.argv) < 2:
     print("Usage: python2 server.py {1, 2, 3...}")
