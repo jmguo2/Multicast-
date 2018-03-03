@@ -125,7 +125,7 @@ def client_init():
 
 # unicast functions ----------------------------------------------------------------------------------------------------------------------
 def send_reset():
-    print "sending reset"
+    # print "sending reset"
     buf = struct.pack(reset_fmt_string, False, False, False)
     for pid, socket in pid_to_socket.items():
         tcp_send(socket, buf)
@@ -307,9 +307,18 @@ def total_order_recieve(server, decoded_vec):
     if redistribute:
         print("\tSequencer recieved message {}".format(message))
         for recip_pid in pid_to_socket.keys():
-            pid_to_vector[server_pid][recip_pid] += 1
-            buf = struct.pack(total_fmt_string, 0, 0, False, pid_to_vector[server_pid][recip_pid], server_pid, sequencer_pid, message)
-            delayed_send(pid_to_socket[recip_pid], buf)
+            if recip_pid != server_pid:
+                pid_to_vector[server_pid][recip_pid] += 1
+                buf_message_number = pid_to_vector[server_pid][recip_pid]
+                buf = struct.pack(total_fmt_string, 0, 0, False, buf_message_number, server_pid, sequencer_pid, message)
+                delayed_send(pid_to_socket[recip_pid], buf)
+            else:
+                # pid_to_vector[server_pid][recip_pid] += 1
+                buf_message_number = pid_to_vector[server_pid][recip_pid] + 1
+                buf = struct.pack(total_fmt_string, 0, 0, False, buf_message_number, server_pid, sequencer_pid, message)
+                tcp_send(pid_to_socket[recip_pid], buf)
+                
+            # print ("pid_to_vector[{}][{}] = {}, buf_message_number = {}".format(server_pid, recip_pid, pid_to_vector[server_pid][recip_pid], buf_message_number))
     
     else:
         print_receive_time(sender_pid, message)
@@ -319,10 +328,12 @@ def total_order_recieve(server, decoded_vec):
 def deliver_total_order(decoded_vec):
     _, _, redistribute, message_number, sender_pid, sequencer_pid, message = decoded_vec
     
-    if pid_to_vector[server_pid][sender_pid] + 1 == message_number or sender_pid == server_pid: # check to make sure its the right message from the client
+    # print (pid_to_vector[server_pid][sender_pid], message_number)
+    if pid_to_vector[server_pid][sender_pid] + 1 == message_number: # check to make sure its the right message from the client
         # deliver, this is the message we're awaiting
-        print("(id={} via seq id={}): {}".format(sender_pid, sequencer_pid, message.strip()))
+        print("(id={} via seq id={}): {}\n\t".format(sender_pid, sequencer_pid, message.strip()))
         pid_to_vector[server_pid][sender_pid] += 1
+        # print ("pid_to_vector[{}][{}] +=1 = {}".format(server_pid, sender_pid, pid_to_vector[server_pid][sender_pid]))
         message_queue_totalOrder[server_pid].remove(decoded_vec)
         
         for decoded_vec in message_queue_totalOrder[server_pid]:
@@ -340,7 +351,7 @@ def print_vector(vector):
     print(tuple(vec_list))
         
 def reset():
-    print "got reset"
+    print "\tReceived reset message"
     global pid_to_vector, message_queue, message_queue_totalOrder
     for pid in range(1, pid_count+1):
         pid_to_vector[pid] = [0] * (pid_count+1)
