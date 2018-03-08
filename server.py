@@ -82,7 +82,7 @@ class client_thread (threading.Thread):
         while(self.running):
             raw_argument = raw_input("Enter command line argument for client: \n\t")
             cli_arg = raw_argument.strip().split(' ')
-            if(len(cli_arg) == 2 and cli_arg[0] == 'send'): 
+            if(len(cli_arg) == 3 and cli_arg[0] == 'send'): 
                 unicast_send(destination=cli_arg[1], message=cli_arg[2])
             elif(len(cli_arg) == 3 and cli_arg[0] == 'msend' and cli_arg[2] == 'casual'):
                 casual_order_send(cli_arg)
